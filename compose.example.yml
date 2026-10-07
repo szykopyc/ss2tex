@@ -1,0 +1,7 @@
+services:
+  ss2tex:
+    build: .
+    restart: unless-stopped
+    # There's no auth: only expose this on a network you trust.
+    ports:
+      - "8000:8000"

@@ -1,0 +1,112 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline'">
+  <title>ss2tex</title>
+  <link rel="stylesheet" href="../../node_modules/katex/dist/katex.min.css">
+  <script src="../../node_modules/katex/dist/katex.min.js"></script>
+  <style>
+    :root { color-scheme: light dark; }
+    body { margin: 0; padding: 12px; font: 13px -apple-system, system-ui, sans-serif; display: flex; flex-direction: column; gap: 8px; height: 100vh; box-sizing: border-box; }
+    .row { display: flex; align-items: center; gap: 8px; }
+    #preview { flex: 1; overflow: auto; display: grid; place-items: center; font-size: 18px; }
+    textarea { height: 90px; resize: none; font: 13px ui-monospace, Menlo, monospace; padding: 8px; }
+    #status { margin-left: auto; opacity: 0.6; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    #server { flex: 1; min-width: 0; }
+    #shortcut { width: 70px; text-align: center; caret-color: transparent; }
+  </style>
+</head>
+<body>
+  <div class="row">
+    <button id="snip">Snip</button>
+    <button id="copy">Copy</button>
+    <label><input type="checkbox" id="wrap"> Wrap in $$</label>
+    <label><input type="checkbox" id="auto-copy"> Auto-copy</label>
+    <span id="status"></span>
+  </div>
+  <div id="preview"></div>
+  <textarea id="out" spellcheck="false"></textarea>
+  <div class="row">
+    <input id="server" type="url" placeholder="Server URL (blank = run on this Mac)" spellcheck="false">
+    <label><input type="checkbox" id="fallback"> Fall back to local</label>
+    <input id="shortcut" title="Click, then press a new shortcut. It must include ⌘, ⌃ or ⌥ (⇧ can be added on top), plus a letter, digit, F-key, arrow or Space." spellcheck="false">
+  </div>
+
+  <script>
+    const out = document.getElementById('out');
+    const wrap = document.getElementById('wrap');
+    const autoCopy = document.getElementById('auto-copy');
+    const status = document.getElementById('status');
+    const preview = document.getElementById('preview');
+    const server = document.getElementById('server');
+    const fallback = document.getElementById('fallback');
+    const shortcut = document.getElementById('shortcut');
+    const snip = document.getElementById('snip');
+
+    const unwrap = (text) => text.replace(/^\s*\$\$\s*([\s\S]*?)\s*\$\$\s*$/, '$1');
+    const show = (latex) => (out.value = latex && wrap.checked ? `$$\n${latex}\n$$` : latex);
+    const render = () => katex.render(unwrap(out.value), preview, { displayMode: true, throwOnError: false });
+    const copy = () => {
+      api.copy(out.value);
+      status.textContent = 'Copied';
+    };
+    const symbols = { CommandOrControl: '⌘', Command: '⌘', Control: '⌃', Alt: '⌥', Shift: '⇧' };
+    const showShortcut = (accelerator) => {
+      shortcut.dataset.accelerator = accelerator;
+      shortcut.value = accelerator.split('+').map((part) => symbols[part] ?? part).join('');
+      snip.textContent = `Snip (${shortcut.value})`;
+    };
+    const saveConfig = async () => {
+      const config = await api.setConfig({
+        server: server.value,
+        fallback: fallback.checked,
+        wrap: wrap.checked,
+        autoCopy: autoCopy.checked,
+        shortcut: shortcut.dataset.accelerator,
+      });
+      showShortcut(config.shortcut);
+    };
+
+    // KeyboardEvent.code → Electron accelerator key; code (not key) so ⌥ doesn't turn L into ¬.
+    const acceleratorKey = (code) =>
+      code.match(/^(?:Key|Digit)(.)$/)?.[1] ?? code.match(/^F\d+$/)?.[0] ?? code.match(/^Arrow(.+)$/)?.[1] ?? (code === 'Space' ? code : null);
+    shortcut.onkeydown = (e) => {
+      e.preventDefault();
+      if (e.key === 'Escape') return shortcut.blur();
+      const key = acceleratorKey(e.code);
+      if (!key || !(e.metaKey || e.ctrlKey || e.altKey)) return;
+      const modifiers = [e.metaKey && 'Command', e.ctrlKey && 'Control', e.altKey && 'Alt', e.shiftKey && 'Shift'];
+      shortcut.dataset.accelerator = [...modifiers.filter(Boolean), key].join('+');
+      shortcut.blur();
+      saveConfig();
+    };
+
+    snip.onclick = api.snip;
+    document.getElementById('copy').onclick = copy;
+    out.oninput = render;
+    server.onchange = fallback.onchange = autoCopy.onchange = saveConfig;
+    wrap.onchange = () => {
+      show(unwrap(out.value));
+      saveConfig();
+      if (autoCopy.checked && out.value) copy();
+    };
+    api.getConfig().then((config) => {
+      server.value = config.server;
+      fallback.checked = config.fallback;
+      wrap.checked = config.wrap;
+      autoCopy.checked = config.autoCopy;
+      showShortcut(config.shortcut);
+    });
+
+    api.on('status', (text) => (status.textContent = text));
+    api.on('result', ({ latex, note }) => {
+      show(latex);
+      render();
+      if (autoCopy.checked) copy();
+      else status.textContent = 'Done';
+      if (note) status.textContent += ` · ${note}`;
+    });
+  </script>
+</body>
+</html>

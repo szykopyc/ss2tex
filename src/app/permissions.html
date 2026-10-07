@@ -1,0 +1,27 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline'">
+  <title>Screen Recording</title>
+  <style>
+    :root { color-scheme: light dark; }
+    body { margin: 0; padding: 16px; font: 13px -apple-system, system-ui, sans-serif; }
+    p { margin: 0 0 8px; }
+    ol { margin: 0 0 16px; padding-left: 20px; }
+    .row { display: flex; gap: 8px; justify-content: flex-end; }
+  </style>
+</head>
+<body>
+  <p>ss2tex needs Screen Recording access to see what you snip.</p>
+  <ol>
+    <li>Open System Settings and turn on ss2tex.</li>
+    <li>Restart ss2tex.</li>
+  </ol>
+  <div class="row">
+    <button onclick="window.close()">Later</button>
+    <button onclick="api.openScreenSettings()">Open Settings</button>
+    <button onclick="api.relaunch()">Restart</button>
+  </div>
+</body>
+</html>
